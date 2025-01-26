@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Vaccine Booking System</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.10.4/dist/web3.min.js"></script>
+    <style>
+        .loading-spinner {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1050;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container mt-4">
+        <h1 class="text-center mb-4">Vaccine Booking System</h1>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <button class="btn btn-secondary" id="reloadMetaMask">Reload MetaMask</button>
+        </div>
+        <div class="row">
+            <!-- Vaccine List -->
+            <div class="col-md-4">
+                <h3>Available Vaccines</h3>
+                <ul class="list-group" id="vaccineList">
+                    <!-- Pfizer -->
+                    <li class="list-group-item d-flex flex-column align-items-start">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <img src="./img/Pfizer.jpg" alt="Pfizer" style="width: 180px; height: auto; margin-right: 15px;">
+                            <div>
+                                <h5 class="mb-1">Pfizer-BioNTech</h5>
+                                <p class="mb-1">Price: <span class="price" data-price="25000000000000000">0.025 Ether</span></p>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary mt-2 w-100" data-vaccine="Pfizer-BioNTech" data-price="25000000000000000">Book Now</button>
+                    </li>
+                    <!-- Moderna -->
+                    <li class="list-group-item d-flex flex-column align-items-start">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <img src="./img/Moderna.jpg" alt="Moderna" style="width: 180px; height: auto; margin-right: 15px;">
+                            <div>
+                                <h5 class="mb-1">Moderna</h5>
+                                <p class="mb-1">Price: <span class="price" data-price="30000000000000000">0.03 Ether</span></p>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary mt-2 w-100" data-vaccine="Moderna" data-price="30000000000000000">Book Now</button>
+                    </li>
+                    <!-- AstraZeneca -->
+                    <li class="list-group-item d-flex flex-column align-items-start">
+                        <div class="d-flex w-100 justify-content-between align-items-center">
+                            <img src="./img/AstraZeneca.jpg" alt="AstraZeneca" style="width: 180px; height: auto; margin-right: 15px;">
+                            <div>
+                                <h5 class="mb-1">AstraZeneca</h5>
+                                <p class="mb-1">Price: <span class="price" data-price="20000000000000000">0.02 Ether</span></p>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary mt-2 w-100" data-vaccine="AstraZeneca" data-price="20000000000000000">Book Now</button>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Booking Table -->
+            <div class="col-md-8">
+                <h3>Booking Information</h3>
+                <table class="table table-bordered">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Vaccine</th>
+                            <th>User Address</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bookingTable">
+                        <!-- Booking rows will be dynamically added here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Loading Spinner -->
+        <div class="loading-spinner">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let web3;
+        let contract;
+        let accounts;
+
+        const contractAddress = "0x332bda2c1b49522d74C19b829C097BeDE89f37cD"; // Replace with your deployed contract address
+        const abi = [
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "vaccineName",
+				"type": "string"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			}
+		],
+		"name": "BookingSuccess",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "vaccineName",
+				"type": "string"
+			}
+		],
+		"name": "bookVaccine",
+		"outputs": [],
+		"stateMutability": "payable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"name": "bookings",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "vaccineName",
+				"type": "string"
+			},
+			{
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "index",
+				"type": "uint256"
+			}
+		],
+		"name": "getBooking",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			},
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getTotalBookings",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+];
+
+        // Show loading spinner
+        function showLoading() {
+            document.querySelector('.loading-spinner').style.display = 'block';
+        }
+
+        // Hide loading spinner
+        function hideLoading() {
+            document.querySelector('.loading-spinner').style.display = 'none';
+        }
+
+        // Load Web3 and connect to MetaMask
+        async function loadWeb3() {
+            if (typeof window.ethereum !== 'undefined') {
+                web3 = new Web3(window.ethereum);
+                await ethereum.request({ method: 'eth_requestAccounts' });
+                accounts = await web3.eth.getAccounts();
+                console.log("Connected account:", accounts[0]);
+            } else {
+                alert("Please install MetaMask!");
+            }
+        }
+
+        // Load Smart Contract
+        async function loadContract() {
+            contract = new web3.eth.Contract(abi, contractAddress);
+            console.log("Contract loaded:", contract);
+        }
+
+        // Reload MetaMask Accounts
+        async function reloadMetaMask() {
+            try {
+                showLoading();
+                if (typeof window.ethereum !== 'undefined') {
+                    await ethereum.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] });
+                    accounts = await web3.eth.getAccounts();
+                    alert(`MetaMask reloaded! Active account: ${accounts[0]}`);
+                } else {
+                    alert("Please install MetaMask to use this application!");
+                }
+            } catch (error) {
+                console.error("MetaMask reload error:", error);
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Load all bookings
+        async function loadBookings() {
+    try {
+        showLoading();
+        
+        // ดึงจำนวนการจองทั้งหมดจาก Smart Contract
+        const totalBookings = await contract.methods.getTotalBookings().call();
+        console.log(`Total bookings: ${totalBookings}`); // แสดงจำนวนการจองทั้งหมดในคอนโซล
+
+        const table = document.getElementById("bookingTable");
+        table.innerHTML = ""; // ล้างข้อมูลตารางเดิม
+
+        for (let i = 0; i < totalBookings; i++) {
+            // ดึงข้อมูลการจองแต่ละรายการจาก Smart Contract
+            const booking = await contract.methods.getBooking(i).call();
+
+            // แสดงข้อมูลในคอนโซล
+            console.log(`Booking ${i + 1}:`);
+            console.log(`  Vaccine Name: ${booking[0]}`); // ชื่อวัคซีน
+            console.log(`  User Address: ${booking[1]}`); // ที่อยู่ของผู้ใช้
+            console.log(`  Timestamp: ${new Date(booking[2] * 1000).toLocaleString()}`); // เวลาที่จอง
+
+            // สร้างแถวข้อมูลในตาราง
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${new Date(booking[2] * 1000).toLocaleString()}</td>
+                <td>${booking[0]}</td>
+                <td>${booking[1]}</td>
+            `;
+            table.appendChild(row); // เพิ่มแถวในตาราง
+        }
+    } catch (error) {
+        console.error("Error loading bookings:", error); // แสดงข้อผิดพลาดถ้ามี
+    } finally {
+        hideLoading(); // ซ่อน Loading Spinner
+    }
+}
+
+
+        // Booking function
+        document.addEventListener("click", async (e) => {
+            if (e.target.classList.contains("btn-primary")) {
+                const vaccineName = e.target.getAttribute("data-vaccine");
+                const price = e.target.getAttribute("data-price");
+
+                try {
+                    showLoading();
+                    await contract.methods.bookVaccine(vaccineName).send({ from: accounts[0], value: price });
+                    alert(`Booking confirmed for ${vaccineName}`);
+                    loadBookings();
+                } catch (error) {
+                    console.error("Booking error:", error);
+                    alert("Booking failed!");
+                } finally {
+                    hideLoading();
+                }
+            }
+        });
+
+        // Add event listener for reload MetaMask button
+        document.getElementById("reloadMetaMask").addEventListener("click", reloadMetaMask);
+
+        // Initialize Web3 and Contract
+        async function init() {
+            await loadWeb3();
+            await loadContract();
+            await loadBookings();
+        }
+
+        init();
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
